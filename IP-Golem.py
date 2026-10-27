@@ -1,5 +1,5 @@
 """
-IP Switcher
+IP Golem
 -----------
 Manage a list of project → IP address profiles and apply them to a
 selected network interface.  No external libraries — stdlib only.
@@ -276,7 +276,7 @@ def styled_button(parent, text, cmd, colour=C_PURPLE, width=14):
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("IP Switcher")
+        self.title("IP Golem")
         self.geometry("860x680")
         self.minsize(760, 580)
         self.configure(bg=C_BG)
@@ -326,7 +326,7 @@ class App(tk.Tk):
     def _build_ui(self):
         title_frame = tk.Frame(self, bg=C_PANEL, pady=10)
         title_frame.pack(fill=tk.X)
-        tk.Label(title_frame, text="⚡ IP Switcher", bg=C_PANEL, fg=C_PURPLE,
+        tk.Label(title_frame, text="⚡ IP Golem", bg=C_PANEL, fg=C_PURPLE,
                  font=("Helvetica", 16, "bold")).pack(side=tk.LEFT, padx=16)
         os_label = "Windows" if IS_WINDOWS else platform.system()
         tk.Label(title_frame, text=f"Platform: {os_label}", bg=C_PANEL,
