@@ -13,9 +13,23 @@ import os
 import platform
 import re
 import subprocess
+import sys
 import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
+
+# ---------------------------------------------------------------------------
+# Resource path helper (works both in development and when frozen by PyInstaller)
+# ---------------------------------------------------------------------------
+
+def get_resource_path(relative_path: str) -> str:
+    """Return absolute path to a resource (works for source and PyInstaller onefile)."""
+    if getattr(sys, "frozen", False):
+        base_path = sys._MEIPASS
+    else:
+        base_path = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base_path, relative_path)
+
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -257,6 +271,9 @@ class App(tk.Tk):
         self.configure(bg=C_BG)
         self.resizable(True, True)
 
+        # Set application icon (icon.png) for window / taskbar
+        self._set_window_icon()
+
         self._cfg = load_config()
         self._profiles: list[dict] = self._cfg.get("profiles", [])
 
@@ -278,6 +295,20 @@ class App(tk.Tk):
         self.after(200, self._check_current_ip)
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    def _set_window_icon(self):
+        """Load icon.png and set it as the window/taskbar icon (cross-platform)."""
+        icon_path = get_resource_path("icon.png")
+        if not os.path.exists(icon_path):
+            return
+        try:
+            photo = tk.PhotoImage(file=icon_path)
+            self.iconphoto(True, photo)
+            # Keep a reference so Tk doesn't garbage-collect the image
+            self._icon_photo = photo
+        except Exception:
+            # Silently ignore if the icon cannot be loaded
+            pass
 
     # ── UI ────────────────────────────────────────────────────────────────────
 
