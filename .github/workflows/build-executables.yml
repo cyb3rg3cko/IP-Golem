@@ -83,3 +83,34 @@ jobs:
             dist/IP-Golem.exe
           retention-days: 14
           if-no-files-found: error
+
+  release:
+    name: Upload to GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    # Only run when a release is published (or manually triggered on a tag)
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/'))
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List downloaded files
+        run: ls -lah dist/
+
+      - name: Upload binaries to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/IP-Golem
+            dist/IP-Golem.exe
+          # If triggered by workflow_dispatch on a tag, use that tag
+          # (when triggered by a release event it uses the release automatically)
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && github.ref_name || '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
