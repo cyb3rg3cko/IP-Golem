@@ -35,7 +35,7 @@ def get_resource_path(relative_path: str) -> str:
 # Constants
 # ---------------------------------------------------------------------------
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                           "ip_switcher_config.json")
+                           "config.json")
 
 IS_WINDOWS = platform.system() == "Windows"
 
