@@ -2,11 +2,9 @@ name: Build Self-Contained Executables
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-  workflow_dispatch:
-  release:
-    types: [ published ]
+    tags:
+      - 'v*'          # e.g. v1.0.0, v1.2.3, v2.0.0-beta
+  workflow_dispatch:  # optional manual trigger
 
 jobs:
   build:
@@ -88,8 +86,8 @@ jobs:
     name: Upload to GitHub Release
     needs: build
     runs-on: ubuntu-latest
-    # Only run when a release is published (or manually triggered on a tag)
-    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/'))
+    # Runs after builds when a version tag is pushed
+    if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
 
@@ -103,14 +101,14 @@ jobs:
       - name: List downloaded files
         run: ls -lah dist/
 
-      - name: Upload binaries to release
+      - name: Create/update release and upload binaries
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/IP-Golem
             dist/IP-Golem.exe
-          # If triggered by workflow_dispatch on a tag, use that tag
-          # (when triggered by a release event it uses the release automatically)
-          tag_name: ${{ github.event_name == 'workflow_dispatch' && github.ref_name || '' }}
+          generate_release_notes: true
+          # Uses the tag that triggered the workflow
+          tag_name: ${{ github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
