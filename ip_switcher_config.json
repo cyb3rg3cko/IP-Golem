@@ -1,0 +1,21 @@
+{
+  "profiles": [
+    {
+      "name": "Project 1",
+      "ip": "192.168.1.13",
+      "mask": "255.255.255.0",
+      "gateway": ""
+    },
+    {
+      "name": "Project 2",
+      "ip": "192.168.100.13",
+      "mask": "255.255.255.0",
+      "gateway": ""
+    }
+  ],
+  "command_windows": "netsh interface ip set address name=\"{iface}\" static {ip} {mask} {gateway}",
+  "command_linux": "ip addr flush dev {iface} && ip addr add {ip}/{prefix} dev {iface} && ip link set {iface} up",
+  "dhcp_windows": "netsh interface ip set address name=\"{iface}\" dhcp",
+  "dhcp_linux": "dhclient {iface}",
+  "last_iface": "enp0s3"
+}
