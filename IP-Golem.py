@@ -5,7 +5,7 @@ Manage a list of project → IP address profiles and apply them to a
 selected network interface.  No external libraries — stdlib only.
 
 Supports Windows and Linux auto-detected at runtime.
-Config saved to ip_switcher_config.json alongside this script.
+Config saved to ip_switcher_config.json next to the executable (or script).
 """
 
 import json
@@ -31,11 +31,22 @@ def get_resource_path(relative_path: str) -> str:
     return os.path.join(base_path, relative_path)
 
 
+def get_config_path() -> str:
+    """Return path for the config file.
+    - When frozen (PyInstaller): next to the executable
+    - When running from source: next to the script
+    """
+    if getattr(sys, "frozen", False):
+        base = os.path.dirname(sys.executable)
+    else:
+        base = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base, "config.json")
+
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                           "ip_switcher_config.json")
+CONFIG_FILE = get_config_path()
 
 IS_WINDOWS = platform.system() == "Windows"
 
