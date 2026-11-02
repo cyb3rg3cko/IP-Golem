@@ -1,5 +1,5 @@
 """
-IP Golem
+IP Switcher
 -----------
 Manage a list of project → IP address profiles and apply them to a
 selected network interface.  No external libraries — stdlib only.
@@ -218,6 +218,21 @@ def run_command(command: str) -> tuple[bool, str]:
 # Config
 # ---------------------------------------------------------------------------
 
+BACKUP_FILE = CONFIG_FILE + ".bak"
+
+
+def _read_json(path: str) -> dict | None:
+    """Return parsed dict or None on any error."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            return data
+    except Exception:
+        pass
+    return None
+
+
 def load_config() -> dict:
     default = {
         "profiles":        [],
@@ -227,20 +242,45 @@ def load_config() -> dict:
         "dhcp_linux":      DEFAULT_DHCP_LINUX,
         "last_iface":      "",
     }
-    if os.path.exists(CONFIG_FILE):
-        try:
-            with open(CONFIG_FILE, "r") as f:
-                data = json.load(f)
-            default.update(data)
-        except Exception:
-            pass
+
+    # Prefer main config; fall back to backup if main is missing or corrupt
+    data = _read_json(CONFIG_FILE)
+    if data is None and os.path.exists(BACKUP_FILE):
+        data = _read_json(BACKUP_FILE)
+        if data is not None:
+            # Restore the good backup over the bad/missing main file
+            try:
+                import shutil
+                shutil.copy2(BACKUP_FILE, CONFIG_FILE)
+            except Exception:
+                pass
+
+    if data:
+        default.update(data)
     return default
 
 
 def save_config(cfg: dict):
+    """Atomically write config and keep a previous backup."""
     try:
-        with open(CONFIG_FILE, "w") as f:
-            json.dump(cfg, f, indent=2)
+        # 1. Backup current good file first
+        if os.path.exists(CONFIG_FILE):
+            try:
+                import shutil
+                shutil.copy2(CONFIG_FILE, BACKUP_FILE)
+            except Exception:
+                pass  # non-fatal
+
+        # 2. Write to a temporary file in the same directory
+        dir_name = os.path.dirname(CONFIG_FILE) or "."
+        tmp_path = os.path.join(dir_name, "config.json.tmp")
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+
+        # 3. Atomic replace
+        os.replace(tmp_path, CONFIG_FILE)
     except Exception as exc:
         messagebox.showerror("Save Error", f"Could not save config:\n{exc}")
 
@@ -276,7 +316,7 @@ def styled_button(parent, text, cmd, colour=C_PURPLE, width=14):
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("IP Golem")
+        self.title("IP Switcher")
         self.geometry("860x680")
         self.minsize(760, 580)
         self.configure(bg=C_BG)
@@ -326,7 +366,7 @@ class App(tk.Tk):
     def _build_ui(self):
         title_frame = tk.Frame(self, bg=C_PANEL, pady=10)
         title_frame.pack(fill=tk.X)
-        tk.Label(title_frame, text="⚡ IP Golem", bg=C_PANEL, fg=C_PURPLE,
+        tk.Label(title_frame, text="⚡ IP Switcher", bg=C_PANEL, fg=C_PURPLE,
                  font=("Helvetica", 16, "bold")).pack(side=tk.LEFT, padx=16)
         os_label = "Windows" if IS_WINDOWS else platform.system()
         tk.Label(title_frame, text=f"Platform: {os_label}", bg=C_PANEL,
@@ -593,8 +633,14 @@ class App(tk.Tk):
 
         tk.Frame(parent, bg=C_BORDER, height=1).pack(fill=tk.X, padx=20, pady=14)
 
-        styled_button(parent, "💾 Save Settings", self._save_settings,
-                      colour=C_PURPLE, width=18).pack(anchor="w", padx=20)
+        btn_row = tk.Frame(parent, bg=C_BG)
+        btn_row.pack(fill=tk.X, padx=20)
+
+        styled_button(btn_row, "💾 Save Settings", self._save_settings,
+                      colour=C_PURPLE, width=18).pack(side=tk.LEFT, padx=(0, 10))
+
+        styled_button(btn_row, "↩ Restore from Backup", self._restore_from_backup,
+                      colour=C_ORANGE, width=22).pack(side=tk.LEFT)
 
         self._var_settings_status = tk.StringVar(value="")
         tk.Label(parent, textvariable=self._var_settings_status,
@@ -869,6 +915,43 @@ class App(tk.Tk):
         save_config(self._cfg)
         self._var_settings_status.set("✅ Settings saved.")
         self.after(3000, lambda: self._var_settings_status.set(""))
+
+    def _restore_from_backup(self):
+        """Copy config.json.bak over config.json and reload the UI."""
+        if not os.path.exists(BACKUP_FILE):
+            messagebox.showwarning("No Backup", "No backup file (config.json.bak) was found.")
+            return
+        if not messagebox.askyesno(
+            "Restore Backup",
+            "Replace the current config with the backup?\n\n"
+            "This will reload all profiles and settings."
+        ):
+            return
+        try:
+            import shutil
+            shutil.copy2(BACKUP_FILE, CONFIG_FILE)
+        except Exception as exc:
+            messagebox.showerror("Restore Failed", f"Could not restore backup:\n{exc}")
+            return
+
+        # Reload in-memory state
+        self._cfg = load_config()
+        self._profiles = self._cfg.get("profiles", [])
+
+        # Refresh UI pieces that depend on the config
+        self._refresh_profile_list()
+        self._var_cmd_windows.set(self._cfg.get("command_windows", DEFAULT_CMD_WINDOWS))
+        self._var_cmd_linux.set(self._cfg.get("command_linux", DEFAULT_CMD_LINUX))
+        self._var_dhcp_windows.set(self._cfg.get("dhcp_windows", DEFAULT_DHCP_WINDOWS))
+        self._var_dhcp_linux.set(self._cfg.get("dhcp_linux", DEFAULT_DHCP_LINUX))
+
+        last = self._cfg.get("last_iface", "")
+        if last and last in self._iface_combo["values"]:
+            self._iface_var.set(last)
+
+        self._var_settings_status.set("✅ Restored from backup.")
+        self._set_status("Config restored from backup.")
+        self.after(4000, lambda: self._var_settings_status.set(""))
 
     def _clear_form(self):
         self._var_name.set("")
